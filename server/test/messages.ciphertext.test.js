@@ -8,12 +8,16 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
 const { createApp } = await import('../src/app.js');
 const { default: Message } = await import('../src/models/Message.js');
+const { default: Chat } = await import('../src/models/Chat.js');
+const { setRedisClient, closeRedis } = await import('../src/services/replayGuard.js');
+const { InMemoryRedis } = await import('./helpers/inMemoryRedis.js');
 
 let mongod;
 let app;
 let request;
 let capturedLogs = [];
 const fixedSenderId = new mongoose.Types.ObjectId().toString();
+const redis = new InMemoryRedis();
 
 function testAuth(req, _res, next) {
   req.user = { id: fixedSenderId };
@@ -31,6 +35,7 @@ test('setup', async () => {
   capturedLogs = [];
   app = createApp({ authMiddleware: testAuth, audit });
   request = supertest(app);
+  setRedisClient(redis);
 });
 
 test('rejects plaintext body', async () => {
@@ -45,13 +50,18 @@ test('rejects plaintext body', async () => {
 
 test('accepts ciphertext-only and stores no plaintext', async () => {
   await Message.deleteMany({});
+  await Chat.deleteMany({});
+  redis.clear();
   capturedLogs = [];
   const chatId = new mongoose.Types.ObjectId().toString();
+  await Chat.create({ _id: new mongoose.Types.ObjectId(chatId), participants: [new mongoose.Types.ObjectId(fixedSenderId)] });
   const payload = Buffer.from('ABCD').toString('base64');
   const res = await request
     .post('/api/messages')
     .send({ chatId, encryptedPayload: payload });
   assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.ok(res.body.id);
 
   const docs = await Message.find({}).lean();
   assert.equal(docs.length, 1);
@@ -68,4 +78,5 @@ test('teardown', async () => {
   if (mongod) {
     await mongod.stop();
   }
+  await closeRedis();
 });

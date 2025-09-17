@@ -12,6 +12,8 @@
     "verify:e2e": "npx playwright install --with-deps && npm -w client run e2e",
     "verify:db": "node scripts/verify-db.mjs",
     "verify:load": "npx artillery run load/basic.yml",
+    "verify:replay": "node --test server/test/replay.test.js",
+    "verify:sockets": "node --test server/test/socket.auth.test.js",
     "verify:all": "npm run verify:client && npm run verify:server && npm run verify:ciphertext && npm run verify:e2e && npm run verify:db && npm run verify:load"
   },
   "dependencies": {

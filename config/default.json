@@ -2,7 +2,7 @@
   "env": "development",
   "server": {
     "port": 3000,
-    "jsonLimit": "64kb",
+    "jsonLimit": "256kb",
     "cors": { "origins": ["http://localhost:5173"] }
   },
   "mongo": { "uri": "mongodb://127.0.0.1:27017/secure_messenger" },
