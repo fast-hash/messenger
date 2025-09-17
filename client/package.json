@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "node --test",
     "lint": "echo 'client: lint not configured'",
-    "e2e": "playwright test --reporter=html"
+    "e2e": "playwright test"
   },
   "dependencies": {
     "buffer": "^6.0.3",

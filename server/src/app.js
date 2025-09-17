@@ -13,6 +13,7 @@ import authRouter from './routes/auth.js';
 import buildKeybundleRouter from './routes/keybundle.js';
 import authMiddleware from './middleware/auth.js';
 import Chat from './models/Chat.js';
+import { mountTestBootstrap } from './test/bootstrap.routes.js';
 
 export async function connectMongo(uri = config.get('mongo.uri')) {
   await mongoose.connect(uri);
@@ -69,6 +70,8 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
   }
   messagesMiddlewares.push(messagesRouter({ auth: null, onMessage }));
   app.use('/api/messages', ...messagesMiddlewares);
+
+  mountTestBootstrap(app);
 
   app.get('/', (_req, res) => {
     res.send('Secure Messenger API');
