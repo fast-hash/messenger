@@ -25,7 +25,7 @@ async function main() {
       authMiddleware: authBypass,
       messageObserver: (body) => {
         observedBodies.push(JSON.parse(JSON.stringify(body ?? {})));
-      }
+      },
     });
     const request = supertest(app);
 
@@ -46,16 +46,24 @@ async function main() {
       exitCode = 1;
     }
 
-    const ciphertextBody = observedBodies.find(body => body?.encryptedPayload === ciphertext.encryptedPayload);
+    const ciphertextBody = observedBodies.find(
+      (body) => body?.encryptedPayload === ciphertext.encryptedPayload
+    );
     if (!ciphertextBody) {
       console.error('Ciphertext request was not observed by middleware.');
       exitCode = 1;
     } else {
       if (Object.prototype.hasOwnProperty.call(ciphertextBody, 'text') && ciphertextBody.text) {
-        console.error('Ciphertext request unexpectedly contained plaintext fields:', ciphertextBody);
+        console.error(
+          'Ciphertext request unexpectedly contained plaintext fields:',
+          ciphertextBody
+        );
         exitCode = 1;
       }
-      if (typeof ciphertextBody.encryptedPayload !== 'string' || !BASE64_RE.test(ciphertextBody.encryptedPayload)) {
+      if (
+        typeof ciphertextBody.encryptedPayload !== 'string' ||
+        !BASE64_RE.test(ciphertextBody.encryptedPayload)
+      ) {
         console.error('Encrypted payload is not valid base64:', ciphertextBody);
         exitCode = 1;
       }
@@ -87,7 +95,7 @@ async function main() {
       exitCode = 1;
     } else {
       const records = Array.isArray(historyRes.body) ? historyRes.body : [];
-      records.forEach(record => {
+      records.forEach((record) => {
         if (Object.prototype.hasOwnProperty.call(record, 'text') && record.text != null) {
           console.error('History response leaked plaintext:', record);
           exitCode = 1;
@@ -100,7 +108,10 @@ async function main() {
     }
 
     if (exitCode === 0) {
-      console.log('Ciphertext verification completed: captured %d request(s).', observedBodies.length);
+      console.log(
+        'Ciphertext verification completed: captured %d request(s).',
+        observedBodies.length
+      );
     }
   } catch (err) {
     console.error('Ciphertext verification failed with exception:', err);

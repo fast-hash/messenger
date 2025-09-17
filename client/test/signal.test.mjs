@@ -12,7 +12,7 @@ const {
   initSession,
   encryptMessage,
   decryptMessage,
-  resetSignalState
+  resetSignalState,
 } = await import('../src/crypto/signal.js');
 
 function bundleToBase64(bundle) {
@@ -26,7 +26,7 @@ test('encrypt/decrypt round-trip succeeds for a self session', async () => {
   const bundleForPeer = {
     identityKey: material.bundle.identityKey,
     signedPreKey: material.bundle.signedPreKey,
-    oneTimePreKey: material.bundle.oneTimePreKeys[0]
+    oneTimePreKey: material.bundle.oneTimePreKeys[0],
   };
 
   await initSession('self', bundleForPeer);
@@ -45,7 +45,7 @@ test('tampering with ciphertext is detected', async () => {
   const bundleBase64 = bundleToBase64({
     identityKey: material.bundle.identityKey,
     signedPreKey: material.bundle.signedPreKey,
-    oneTimePreKey: material.bundle.oneTimePreKeys[0]
+    oneTimePreKey: material.bundle.oneTimePreKeys[0],
   });
 
   await initSession('peer', bundleBase64);
@@ -67,7 +67,7 @@ test('decrypting with the wrong identity fails', async () => {
   const bundle = bundleToBase64({
     identityKey: material.bundle.identityKey,
     signedPreKey: material.bundle.signedPreKey,
-    oneTimePreKey: material.bundle.oneTimePreKeys[0]
+    oneTimePreKey: material.bundle.oneTimePreKeys[0],
   });
 
   await initSession('peer', bundle);

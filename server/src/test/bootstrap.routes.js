@@ -17,13 +17,13 @@ export function mountTestBootstrap(app) {
 
     await Users.insertMany([
       { _id: userA, username: 'userA', createdAt: new Date() },
-      { _id: userB, username: 'userB', createdAt: new Date() }
+      { _id: userB, username: 'userB', createdAt: new Date() },
     ]);
 
     await Chats.insertOne({
       _id: chatId,
       participants: [userA.toString(), userB.toString()],
-      createdAt: new Date()
+      createdAt: new Date(),
     });
 
     const sign = (sub) =>
@@ -36,7 +36,7 @@ export function mountTestBootstrap(app) {
     return res.json({
       chatId: chatId.toString(),
       tokenA: sign(userA.toString()),
-      tokenB: sign(userB.toString())
+      tokenB: sign(userB.toString()),
     });
   });
 

@@ -21,7 +21,13 @@ export async function connectMongo(uri = config.get('mongo.uri')) {
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
-export function createApp({ authMiddleware: overrideAuth, audit, logger = console, messageObserver, onMessage } = {}) {
+export function createApp({
+  authMiddleware: overrideAuth,
+  audit,
+  logger = console,
+  messageObserver,
+  onMessage,
+} = {}) {
   const app = express();
   app.locals.logger = logger;
 
@@ -33,7 +39,7 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
       } else {
         logger.info?.(line) ?? logger.log?.(line);
       }
-    }
+    },
   };
 
   app.use(helmet());
@@ -50,7 +56,7 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
     max: Number(process.env.RATE_LIMIT_MAX || 120),
     keyGenerator: (req) => req.user?.id || req.ip,
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
   });
 
   app.use('/api/auth', authRouter);
@@ -88,14 +94,17 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
 export function attachSockets(server, { cors: corsOptions } = {}) {
   const allowedOriginsEnv = process.env.SOCKET_ALLOWED_ORIGINS;
   const allowedOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((origin) => origin.trim()).filter(Boolean)
+    ? allowedOriginsEnv
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
     : config.get('server.cors.origins');
 
   const io = new SocketIOServer(server, {
     cors: {
       origin: corsOptions?.origin ?? allowedOrigins,
-      credentials: true
-    }
+      credentials: true,
+    },
   });
 
   const secret = process.env.JWT_SECRET || config.get('jwt.secret');
@@ -105,9 +114,8 @@ export function attachSockets(server, { cors: corsOptions } = {}) {
   io.use((socket, next) => {
     try {
       const header = socket.handshake.headers?.authorization;
-      const tokenFromHeader = typeof header === 'string' && header.startsWith('Bearer ')
-        ? header.slice(7)
-        : undefined;
+      const tokenFromHeader =
+        typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : undefined;
       const token = tokenFromHeader || socket.handshake.auth?.token;
       if (!token) {
         return next(new Error('unauthorized'));

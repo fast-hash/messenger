@@ -10,7 +10,10 @@ import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 import { setRedisClient, closeRedis } from '../src/services/replayGuard.js';
 
 const senderId = new mongoose.Types.ObjectId().toString();
-function testAuth(req, _res, next) { req.user = { id: senderId }; next(); }
+function testAuth(req, _res, next) {
+  req.user = { id: senderId };
+  next();
+}
 
 let mongod, app, server, request;
 const redis = new InMemoryRedis();
@@ -29,7 +32,10 @@ test('first ciphertext ok, duplicate 409', async () => {
   await Message.deleteMany({});
   redis.clear();
   const chatId = new mongoose.Types.ObjectId().toString();
-  await Chat.create({ _id: new mongoose.Types.ObjectId(chatId), participants: [new mongoose.Types.ObjectId(senderId)] });
+  await Chat.create({
+    _id: new mongoose.Types.ObjectId(chatId),
+    participants: [new mongoose.Types.ObjectId(senderId)],
+  });
   const payload = 'QUJDRA==';
 
   const first = await request.post('/api/messages').send({ chatId, encryptedPayload: payload });

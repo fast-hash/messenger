@@ -13,7 +13,7 @@ const app = createApp({
     if (io) {
       io.to(message.chatId).emit('message', message);
     }
-  }
+  },
 });
 
 const { server, io: attachedIo } = await attachHttp(app);

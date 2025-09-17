@@ -6,7 +6,7 @@ services:
     container_name: secure-mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - '27017:27017'
     volumes:
       - mongo-data:/data/db
 
@@ -15,7 +15,7 @@ services:
     container_name: secure-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
 

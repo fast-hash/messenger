@@ -38,7 +38,11 @@ export default function messagesRouter({ auth, onMessage } = {}) {
         return res.status(403).json({ error: 'forbidden' });
       }
 
-      const { ok: notDuplicate } = await ensureNotReplayed(chatId, encryptedPayload, replayTtlSeconds);
+      const { ok: notDuplicate } = await ensureNotReplayed(
+        chatId,
+        encryptedPayload,
+        replayTtlSeconds
+      );
       if (!notDuplicate) {
         return res.status(409).json({ error: 'duplicate' });
       }
@@ -46,7 +50,7 @@ export default function messagesRouter({ auth, onMessage } = {}) {
       const payload = {
         chatId: new mongoose.Types.ObjectId(chatId),
         senderId: new mongoose.Types.ObjectId(senderId),
-        encryptedPayload
+        encryptedPayload,
       };
 
       const created = await Message.create(payload);
@@ -55,7 +59,7 @@ export default function messagesRouter({ auth, onMessage } = {}) {
         chatId: created.chatId.toString(),
         senderId: created.senderId.toString(),
         encryptedPayload: created.encryptedPayload,
-        createdAt: created.createdAt
+        createdAt: created.createdAt,
       };
 
       if (typeof onMessage === 'function') {
@@ -93,12 +97,12 @@ export default function messagesRouter({ auth, onMessage } = {}) {
         .sort({ createdAt: 1 })
         .lean();
 
-      const serialised = docs.map(doc => ({
+      const serialised = docs.map((doc) => ({
         id: doc._id.toString(),
         chatId: doc.chatId.toString(),
         senderId: doc.senderId.toString(),
         encryptedPayload: doc.encryptedPayload,
-        createdAt: doc.createdAt
+        createdAt: doc.createdAt,
       }));
 
       return res.json(serialised);

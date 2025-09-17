@@ -50,11 +50,13 @@ function applyMaterialToLocalStore(material) {
   storeValue('registrationId', material.registrationId, { sync: false });
 
   if (material.signedPreKey) {
-    storeValue(`25519KeysignedKey${material.signedPreKey.keyId}`, material.signedPreKey.keyPair, { sync: false });
+    storeValue(`25519KeysignedKey${material.signedPreKey.keyId}`, material.signedPreKey.keyPair, {
+      sync: false,
+    });
   }
 
   if (Array.isArray(material.oneTimePreKeys)) {
-    material.oneTimePreKeys.forEach(preKey => {
+    material.oneTimePreKeys.forEach((preKey) => {
       if (preKey && typeof preKey.keyId !== 'undefined') {
         storeValue(`25519KeypreKey${preKey.keyId}`, preKey.keyPair, { sync: false });
       }
@@ -87,8 +89,9 @@ function handleWorkerMessage(message) {
 }
 
 function handleWorkerError(error) {
-  const err = error instanceof Error ? error : new Error(String(error || 'Unknown crypto worker error'));
-  pendingRequests.forEach(entry => {
+  const err =
+    error instanceof Error ? error : new Error(String(error || 'Unknown crypto worker error'));
+  pendingRequests.forEach((entry) => {
     clearTimeout(entry.timeout);
     entry.reject(err);
   });
@@ -106,14 +109,14 @@ function wrapBrowserWorker(worker) {
     },
     terminate() {
       worker.terminate();
-    }
+    },
   };
 }
 
 function wrapNodeWorker(worker) {
   worker.on('message', handleWorkerMessage);
   worker.on('error', handleWorkerError);
-  worker.on('exit', code => {
+  worker.on('exit', (code) => {
     if (code !== 0) {
       handleWorkerError(new Error(`Crypto worker exited with code ${code}`));
     }
@@ -127,26 +130,30 @@ function wrapNodeWorker(worker) {
     },
     terminate() {
       worker.terminate();
-    }
+    },
   };
 }
 
 async function createWorkerWrapper() {
-  if (typeof Worker !== 'undefined') {
-    const worker = new Worker(new URL('./worker/crypto.worker.js', import.meta.url), { type: 'module' });
+  if (typeof window !== 'undefined' && typeof window.Worker === 'function') {
+    const worker = new Worker(new URL('./worker/crypto.browser.worker.js', import.meta.url), {
+      type: 'module',
+    });
     return wrapBrowserWorker(worker);
   }
 
   const { Worker: NodeWorker } = await import('node:worker_threads');
-  const worker = new NodeWorker(new URL('./worker/crypto.worker.js', import.meta.url), { type: 'module' });
+  const worker = new NodeWorker(new URL('./worker/crypto.node.worker.js', import.meta.url), {
+    type: 'module',
+  });
   return wrapNodeWorker(worker);
 }
 
 async function ensureWorker() {
   if (!workerWrapperPromise) {
     workerWrapperPromise = createWorkerWrapper()
-      .then(wrapper => wrapper)
-      .catch(error => {
+      .then((wrapper) => wrapper)
+      .catch((error) => {
         workerWrapperPromise = null;
         throw error;
       });
@@ -172,7 +179,7 @@ async function sendRequest(action, payload = {}) {
 function queueStoreSync(action, payload) {
   storeSyncChain = storeSyncChain
     .then(() => sendRequest(action, payload))
-    .catch(error => {
+    .catch((error) => {
       console.error('Failed to synchronise crypto store with worker', error);
     });
 }
@@ -219,28 +226,28 @@ export function resetSignalState() {
 
 export const signalStore = {
   getIdentityKeyPair: () => getValue('identityKeyPair'),
-  setIdentityKeyPair: value => storeValue('identityKeyPair', value),
+  setIdentityKeyPair: (value) => storeValue('identityKeyPair', value),
   getLocalRegistrationId: () => getValue('registrationId'),
-  setLocalRegistrationId: value => storeValue('registrationId', value),
+  setLocalRegistrationId: (value) => storeValue('registrationId', value),
 
-  loadPreKey: keyId => getValue(`25519KeypreKey${keyId}`),
+  loadPreKey: (keyId) => getValue(`25519KeypreKey${keyId}`),
   storePreKey: (keyId, keyPair) => storeValue(`25519KeypreKey${keyId}`, keyPair),
-  removePreKey: keyId => storeValue(`25519KeypreKey${keyId}`, undefined),
+  removePreKey: (keyId) => storeValue(`25519KeypreKey${keyId}`, undefined),
 
-  loadSignedPreKey: keyId => getValue(`25519KeysignedKey${keyId}`),
+  loadSignedPreKey: (keyId) => getValue(`25519KeysignedKey${keyId}`),
   storeSignedPreKey: (keyId, keyPair) => storeValue(`25519KeysignedKey${keyId}`, keyPair),
-  removeSignedPreKey: keyId => storeValue(`25519KeysignedKey${keyId}`, undefined),
+  removeSignedPreKey: (keyId) => storeValue(`25519KeysignedKey${keyId}`, undefined),
 
-  loadSession: id => getValue(`session${id}`),
+  loadSession: (id) => getValue(`session${id}`),
   storeSession: (id, session) => storeValue(`session${id}`, session, { sync: false }),
-  removeSession: id => storeValue(`session${id}`, undefined, { sync: false }),
+  removeSession: (id) => storeValue(`session${id}`, undefined, { sync: false }),
 
   isTrustedIdentity: () => true,
-  loadIdentityKey: id => getValue(`identityKey${id}`),
+  loadIdentityKey: (id) => getValue(`identityKey${id}`),
   saveIdentity: (id, identityKey) => storeValue(`identityKey${id}`, identityKey, { sync: false }),
 
   reset: () => {
     memoryStore.clear();
     queueStoreSync('store:clear', {});
-  }
+  },
 };

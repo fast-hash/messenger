@@ -62,17 +62,11 @@ function base64ToBytes(base64) {
 }
 
 async function getCrypto() {
-  if (globalThis.crypto?.subtle) {
-    return globalThis.crypto;
+  const crypto = globalThis.crypto || (typeof window !== 'undefined' ? window.crypto : undefined);
+  if (!crypto?.subtle) {
+    throw new Error('WebCrypto not available');
   }
-  if (typeof window !== 'undefined' && window.crypto?.subtle) {
-    return window.crypto;
-  }
-  const { webcrypto } = await import(/* @vite-ignore */ 'node:crypto');
-  if (!globalThis.crypto) {
-    globalThis.crypto = webcrypto;
-  }
-  return webcrypto;
+  return crypto;
 }
 
 async function openDb() {
@@ -128,7 +122,7 @@ function normaliseKeyPair(keyPair) {
   }
   return {
     pubKey: toUint8(keyPair.pubKey),
-    privKey: toUint8(keyPair.privKey)
+    privKey: toUint8(keyPair.privKey),
   };
 }
 
@@ -138,8 +132,8 @@ function serialiseIdentity(identity) {
     registrationId: identity.registrationId,
     identityKeyPair: {
       pubKey: bytesToBase64(keyPair.pubKey),
-      privKey: bytesToBase64(keyPair.privKey)
-    }
+      privKey: bytesToBase64(keyPair.privKey),
+    },
   };
 }
 
@@ -149,8 +143,8 @@ function deserialiseIdentity(record) {
     registrationId: record.registrationId,
     identityKeyPair: {
       pubKey: base64ToBytes(record.identityKeyPair.pubKey),
-      privKey: base64ToBytes(record.identityKeyPair.privKey)
-    }
+      privKey: base64ToBytes(record.identityKeyPair.privKey),
+    },
   };
 }
 
@@ -163,16 +157,16 @@ function serialisePreKeys(preKeys) {
       keyId: preKeys.signedPreKey.keyId,
       publicKey: bytesToBase64(toUint8(preKeys.signedPreKey.keyPair.pubKey)),
       privateKey: bytesToBase64(toUint8(preKeys.signedPreKey.keyPair.privKey)),
-      signature: bytesToBase64(toUint8(preKeys.signedPreKey.signature))
+      signature: bytesToBase64(toUint8(preKeys.signedPreKey.signature)),
     },
-    oneTimePreKeys: []
+    oneTimePreKeys: [],
   };
   if (Array.isArray(preKeys.oneTimePreKeys)) {
     for (const item of preKeys.oneTimePreKeys) {
       result.oneTimePreKeys.push({
         keyId: item.keyId,
         publicKey: bytesToBase64(toUint8(item.keyPair.pubKey)),
-        privateKey: bytesToBase64(toUint8(item.keyPair.privKey))
+        privateKey: bytesToBase64(toUint8(item.keyPair.privKey)),
       });
     }
   }
@@ -186,19 +180,19 @@ function deserialisePreKeys(record) {
       keyId: record.signedPreKey.keyId,
       keyPair: {
         pubKey: base64ToBytes(record.signedPreKey.publicKey),
-        privKey: base64ToBytes(record.signedPreKey.privateKey)
+        privKey: base64ToBytes(record.signedPreKey.privateKey),
       },
-      signature: base64ToBytes(record.signedPreKey.signature)
+      signature: base64ToBytes(record.signedPreKey.signature),
     },
     oneTimePreKeys: Array.isArray(record.oneTimePreKeys)
-      ? record.oneTimePreKeys.map(item => ({
+      ? record.oneTimePreKeys.map((item) => ({
           keyId: item.keyId,
           keyPair: {
             pubKey: base64ToBytes(item.publicKey),
-            privKey: base64ToBytes(item.privateKey)
-          }
+            privKey: base64ToBytes(item.privateKey),
+          },
         }))
-      : []
+      : [],
   };
 }
 
@@ -217,7 +211,7 @@ async function deriveAesKey(passphrase, saltBytes) {
       name: 'PBKDF2',
       salt: saltBytes,
       iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256'
+      hash: 'SHA-256',
     },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
@@ -240,7 +234,7 @@ export async function saveIdentityEncrypted(passphrase, identity) {
   await writeRecord(IDENTITY_KEY, {
     salt: bytesToBase64(salt),
     iv: bytesToBase64(iv),
-    ciphertext: bytesToBase64(ciphertext)
+    ciphertext: bytesToBase64(ciphertext),
   });
 }
 
@@ -259,10 +253,14 @@ export async function loadIdentity(passphrase) {
   const aesKey = await deriveAesKey(passphrase, new Uint8Array(salt));
 
   try {
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: new Uint8Array(iv) }, aesKey, base64ToBytes(record.ciphertext));
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: new Uint8Array(iv) },
+      aesKey,
+      base64ToBytes(record.ciphertext)
+    );
     const json = JSON.parse(textDecoder.decode(new Uint8Array(decrypted)));
     return deserialiseIdentity(json);
-  } catch (err) {
+  } catch {
     throw new Error('Failed to decrypt identity material');
   }
 }

@@ -17,7 +17,10 @@ async function deriveSessionKey(scope, identityKey, address, localIdentity) {
   const identity = bufferToBase64(identityKey);
   const material = encoder.encode(`${identity}:${address.name}:${localIdentity}`);
   const hash = await scope.crypto.subtle.digest('SHA-256', material);
-  return scope.crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  return scope.crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, [
+    'encrypt',
+    'decrypt',
+  ]);
 }
 
 export function setupTestLibsignal() {
@@ -30,8 +33,8 @@ export function setupTestLibsignal() {
   const scope = globalThis.window;
   scope.dcodeIO ||= {};
   scope.crypto ||= globalThis.crypto;
-  scope.btoa ||= str => Buffer.from(str, 'binary').toString('base64');
-  scope.atob ||= str => Buffer.from(str, 'base64').toString('binary');
+  scope.btoa ||= (str) => Buffer.from(str, 'binary').toString('base64');
+  scope.atob ||= (str) => Buffer.from(str, 'base64').toString('binary');
 
   if (scope.libsignal?.__testDouble) {
     return;
@@ -44,7 +47,7 @@ export function setupTestLibsignal() {
       async generateIdentityKeyPair() {
         return {
           pubKey: randomBytes(scope, 32).buffer,
-          privKey: randomBytes(scope, 32).buffer
+          privKey: randomBytes(scope, 32).buffer,
         };
       },
       async generateRegistrationId() {
@@ -55,8 +58,8 @@ export function setupTestLibsignal() {
           keyId,
           keyPair: {
             pubKey: randomBytes(scope, 32).buffer,
-            privKey: randomBytes(scope, 32).buffer
-          }
+            privKey: randomBytes(scope, 32).buffer,
+          },
         };
       },
       async generateSignedPreKey(identityKeyPair, keyId) {
@@ -64,11 +67,11 @@ export function setupTestLibsignal() {
           keyId,
           keyPair: {
             pubKey: randomBytes(scope, 32).buffer,
-            privKey: randomBytes(scope, 32).buffer
+            privKey: randomBytes(scope, 32).buffer,
           },
-          signature: randomBytes(scope, 64).buffer
+          signature: randomBytes(scope, 64).buffer,
         };
-      }
+      },
     },
     SignalProtocolAddress: class {
       constructor(name, deviceId) {
@@ -102,7 +105,11 @@ export function setupTestLibsignal() {
         const key = sessionSecrets.get(this.address.name);
         if (!key) throw new Error('Session key missing');
         const iv = randomBytes(scope, 12);
-        const ciphertext = await scope.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+        const ciphertext = await scope.crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv },
+          key,
+          plaintext
+        );
         const body = new Uint8Array(iv.byteLength + ciphertext.byteLength);
         body.set(iv, 0);
         body.set(new Uint8Array(ciphertext), iv.byteLength);
@@ -125,7 +132,7 @@ export function setupTestLibsignal() {
         const ciphertext = data.slice(12);
         return scope.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
       }
-    }
+    },
   };
 
   if (!scope.signalStore) {

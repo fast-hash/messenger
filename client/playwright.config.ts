@@ -5,7 +5,7 @@ export default defineConfig({
     headless: true,
     trace: 'on-first-retry',
     video: 'retain-on-failure',
-    screenshot: 'only-on-failure'
+    screenshot: 'only-on-failure',
   },
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
 });

@@ -6,7 +6,7 @@ const MessageSchema = new Schema(
   {
     chatId: { type: Schema.Types.ObjectId, required: true, index: true },
     senderId: { type: Schema.Types.ObjectId, required: true, index: true },
-    encryptedPayload: { type: String, required: true }
+    encryptedPayload: { type: String, required: true },
   },
   { timestamps: true }
 );
