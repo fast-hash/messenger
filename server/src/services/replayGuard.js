@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+
 import { createClient } from 'redis';
+
 import config from '../config.js';
 
 let redisClient;

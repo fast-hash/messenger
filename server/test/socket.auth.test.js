@@ -1,10 +1,12 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { io as Client } from 'socket.io-client';
+import test from 'node:test';
+
 import jwt from 'jsonwebtoken';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
+import { io as Client } from 'socket.io-client';
+
 import { attachSockets } from '../src/app.js';
 import Chat from '../src/models/Chat.js';
 

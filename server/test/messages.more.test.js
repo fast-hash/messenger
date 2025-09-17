@@ -1,11 +1,14 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import supertest from 'supertest';
-import mongoose from 'mongoose';
+import test from 'node:test';
+
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import mongoose from 'mongoose';
+import supertest from 'supertest';
+
 import { createApp } from '../src/app.js';
 import Chat from '../src/models/Chat.js';
 import { setRedisClient, closeRedis } from '../src/services/replayGuard.js';
+
 import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 
 let mongod, app, request;
@@ -65,7 +68,7 @@ test('413 when ciphertext exceeds configured limit', async () => {
     participants: [new mongoose.Types.ObjectId(senderId)],
   });
   const max = Number(process.env.MAX_CIPHERTEXT_B64 || 131072);
-  const oversized = 'A'.repeat(max + 1);
+  const oversized = 'A'.repeat(max + 4);
   const res = await request.post('/api/messages').send({ chatId, encryptedPayload: oversized });
   assert.equal(res.statusCode, 413);
 });

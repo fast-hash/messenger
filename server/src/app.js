@@ -1,18 +1,20 @@
 import http from 'node:http';
-import express from 'express';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+
 import cors from 'cors';
+import express from 'express';
+import expressRateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import morgan from 'morgan';
 import { Server as SocketIOServer } from 'socket.io';
-import jwt from 'jsonwebtoken';
+
 import config from './config.js';
-import mongoose from 'mongoose';
-import messagesRouter from './routes/messages.js';
-import authRouter from './routes/auth.js';
-import buildKeybundleRouter from './routes/keybundle.js';
 import authMiddleware from './middleware/auth.js';
 import Chat from './models/Chat.js';
+import authRouter from './routes/auth.js';
+import buildKeybundleRouter from './routes/keybundle.js';
+import messagesRouter from './routes/messages.js';
 import { mountTestBootstrap } from './test/bootstrap.routes.js';
 
 export async function connectMongo(uri = config.get('mongo.uri')) {
@@ -20,6 +22,8 @@ export async function connectMongo(uri = config.get('mongo.uri')) {
 }
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+const REAUTH_WINDOW_MS = 60_000;
+const REAUTH_MAX_ATTEMPTS = 5;
 
 export function createApp({
   authMiddleware: overrideAuth,
@@ -46,12 +50,12 @@ export function createApp({
   app.use(cors({ origin: config.get('server.cors.origins'), credentials: true }));
   app.use(express.json({ limit: config.get('server.jsonLimit'), strict: true }));
   app.use(morgan('tiny', { stream: auditStream }));
-  app.use(rateLimit({ windowMs: 60_000, max: 300 }));
+  app.use(expressRateLimit({ windowMs: 60_000, max: 300 }));
 
   const pass = (req, _res, next) => next();
   const auth = overrideAuth || authMiddleware || pass;
 
-  const perUserLimiter = rateLimit({
+  const perUserLimiter = expressRateLimit({
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
     max: Number(process.env.RATE_LIMIT_MAX || 120),
     keyGenerator: (req) => req.user?.id || req.ip,
@@ -91,6 +95,22 @@ export function createApp({
   return app;
 }
 
+function verifySocketToken(token, { secret, audience, issuer }) {
+  const verifyOptions = { algorithms: ['HS256'] };
+  if (audience) {
+    verifyOptions.audience = audience;
+  }
+  if (issuer) {
+    verifyOptions.issuer = issuer;
+  }
+  const payload = jwt.verify(token, secret, verifyOptions);
+  const userId = payload.sub || payload.userId || payload.id;
+  if (!userId) {
+    throw new Error('unauthorized');
+  }
+  return userId.toString();
+}
+
 export function attachSockets(server, { cors: corsOptions } = {}) {
   const allowedOriginsEnv = process.env.SOCKET_ALLOWED_ORIGINS;
   const allowedOrigins = allowedOriginsEnv
@@ -121,22 +141,11 @@ export function attachSockets(server, { cors: corsOptions } = {}) {
         return next(new Error('unauthorized'));
       }
 
-      const verifyOptions = { algorithms: ['HS256'] };
-      if (audience) {
-        verifyOptions.audience = audience;
-      }
-      if (issuer) {
-        verifyOptions.issuer = issuer;
-      }
-
-      const payload = jwt.verify(token, secret, verifyOptions);
-      const userId = payload.sub || payload.userId || payload.id;
-      if (!userId) {
-        return next(new Error('unauthorized'));
-      }
-      socket.data.userId = typeof userId === 'string' ? userId : userId.toString();
+      const userId = verifySocketToken(token, { secret, audience, issuer });
+      socket.data.userId = userId;
+      socket.data.reauthAttempts = [];
       return next();
-    } catch (err) {
+    } catch {
       return next(new Error('unauthorized'));
     }
   });
@@ -155,6 +164,40 @@ export function attachSockets(server, { cors: corsOptions } = {}) {
         ack?.({ ok: true });
       } catch (err) {
         ack?.({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on('reauth', async ({ accessToken } = {}, ack) => {
+      try {
+        const now = Date.now();
+        const attempts = Array.isArray(socket.data.reauthAttempts)
+          ? socket.data.reauthAttempts.filter((ts) => now - ts <= REAUTH_WINDOW_MS)
+          : [];
+        if (attempts.length >= REAUTH_MAX_ATTEMPTS) {
+          throw new Error('rate_limited');
+        }
+        if (typeof accessToken !== 'string' || !accessToken) {
+          throw new Error('invalid_token');
+        }
+        attempts.push(now);
+        socket.data.reauthAttempts = attempts;
+
+        const nextUserId = verifySocketToken(accessToken, { secret, audience, issuer });
+        socket.data.userId = nextUserId;
+
+        const rooms = [...socket.rooms].filter((room) => room !== socket.id);
+        await Promise.all(
+          rooms.map(async (room) => {
+            const member = await Chat.isMember(room, nextUserId);
+            if (!member) {
+              await socket.leave(room);
+            }
+          })
+        );
+
+        ack?.({ ok: true });
+      } catch (err) {
+        ack?.({ ok: false, error: err.message || 'unauthorized' });
       }
     });
   });

@@ -1,11 +1,11 @@
 // client/src/App.jsx
-import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useContext } from 'react';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 
-import LoginPage from './pages/LoginPage';
-import ChatPage from './pages/ChatPage';
-import { RegisterPage } from './pages/RegisterPage';
 import { AuthContext } from './contexts/AuthContext';
+import ChatPage from './pages/ChatPage';
+import LoginPage from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 
 function Protected({ children }) {
   const { token } = useContext(AuthContext);

@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+
 import config from '../config.js';
 
 export default function auth(req, res, next) {
@@ -20,7 +21,7 @@ export default function auth(req, res, next) {
       return res.status(401).json({ error: 'invalid_token' });
     }
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'invalid_token' });
   }
 }

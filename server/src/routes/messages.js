@@ -1,13 +1,32 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import Message from '../models/Message.js';
+
 import Chat from '../models/Chat.js';
-import base64Regex from '../util/base64Regex.js';
+import Message from '../models/Message.js';
 import { ensureNotReplayed } from '../services/replayGuard.js';
+import base64Regex from '../util/base64Regex.js';
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
 const noop = (_req, _res, next) => next();
+
+function isCanonicalBase64(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  if (!base64Regex.test(value)) {
+    return false;
+  }
+  if (value.length % 4 !== 0) {
+    return false;
+  }
+  try {
+    const normalised = Buffer.from(value, 'base64').toString('base64');
+    return normalised === value;
+  } catch {
+    return false;
+  }
+}
 
 export default function messagesRouter({ auth, onMessage } = {}) {
   const router = Router();
@@ -21,7 +40,7 @@ export default function messagesRouter({ auth, onMessage } = {}) {
       if (typeof chatId !== 'string' || !OBJECT_ID_RE.test(chatId)) {
         return res.status(422).json({ error: 'invalid chatId' });
       }
-      if (typeof encryptedPayload !== 'string' || !base64Regex.test(encryptedPayload)) {
+      if (!isCanonicalBase64(encryptedPayload)) {
         return res.status(422).json({ error: 'invalid encryptedPayload' });
       }
       if (encryptedPayload.length > maxCiphertextLength) {
@@ -76,11 +95,61 @@ export default function messagesRouter({ auth, onMessage } = {}) {
     }
   });
 
+  function parseCursor(raw) {
+    if (typeof raw !== 'string' || raw.length === 0) {
+      return null;
+    }
+    const [createdAtPart, idPart] = raw.split('|');
+    if (!createdAtPart || !idPart) {
+      throw new Error('invalid cursor');
+    }
+    const createdAt = new Date(createdAtPart);
+    if (Number.isNaN(createdAt.getTime())) {
+      throw new Error('invalid cursor');
+    }
+    if (!OBJECT_ID_RE.test(idPart)) {
+      throw new Error('invalid cursor');
+    }
+    return {
+      createdAt,
+      id: new mongoose.Types.ObjectId(idPart),
+    };
+  }
+
+  function encodeCursor(doc) {
+    if (!doc) {
+      return null;
+    }
+    const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt);
+    const id = doc._id?.toString?.() ?? doc.id;
+    if (!createdAt || Number.isNaN(createdAt.getTime()) || !id) {
+      return null;
+    }
+    return `${createdAt.toISOString()}|${id}`;
+  }
+
   router.get('/:chatId', guard, async (req, res, next) => {
     try {
       const { chatId } = req.params;
       if (typeof chatId !== 'string' || !OBJECT_ID_RE.test(chatId)) {
         return res.status(422).json({ error: 'invalid chatId' });
+      }
+
+      const rawLimit = req.query?.limit;
+      const limit =
+        rawLimit === undefined || rawLimit === ''
+          ? 50
+          : Number.parseInt(Array.isArray(rawLimit) ? rawLimit[0] : rawLimit, 10);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+        return res.status(400).json({ error: 'invalid limit' });
+      }
+
+      let cursor;
+      try {
+        const rawCursor = req.query?.cursor;
+        cursor = parseCursor(Array.isArray(rawCursor) ? rawCursor[0] : rawCursor);
+      } catch {
+        return res.status(400).json({ error: 'invalid cursor' });
       }
 
       const requesterId = req.user?.id;
@@ -93,11 +162,27 @@ export default function messagesRouter({ auth, onMessage } = {}) {
         return res.status(403).json({ error: 'forbidden' });
       }
 
-      const docs = await Message.find({ chatId: new mongoose.Types.ObjectId(chatId) })
-        .sort({ createdAt: 1 })
+      const chatObjectId = new mongoose.Types.ObjectId(chatId);
+      const filter = { chatId: chatObjectId };
+      if (cursor) {
+        filter.$or = [
+          { createdAt: { $lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, _id: { $lt: cursor.id } },
+        ];
+      }
+
+      const docsDesc = await Message.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(limit + 1)
         .lean();
 
-      const serialised = docs.map((doc) => ({
+      const docsAsc = docsDesc.slice().reverse();
+
+      const hasMore = docsAsc.length > limit;
+      const sliceStart = hasMore ? 1 : 0;
+      const trimmed = docsAsc.slice(sliceStart);
+
+      const serialised = trimmed.map((doc) => ({
         id: doc._id.toString(),
         chatId: doc.chatId.toString(),
         senderId: doc.senderId.toString(),
@@ -105,7 +190,13 @@ export default function messagesRouter({ auth, onMessage } = {}) {
         createdAt: doc.createdAt,
       }));
 
-      return res.json(serialised);
+      const nextCursor = hasMore ? encodeCursor(trimmed[0]) : null;
+
+      return res.json({
+        messages: serialised,
+        nextCursor,
+        hasMore,
+      });
     } catch (err) {
       next(err);
     }

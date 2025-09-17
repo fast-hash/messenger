@@ -1,13 +1,16 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import supertest from 'supertest';
+import test from 'node:test';
+
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
+import supertest from 'supertest';
+
 import { createApp, attachHttp } from '../src/app.js';
 import Chat from '../src/models/Chat.js';
 import Message from '../src/models/Message.js';
-import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 import { setRedisClient, closeRedis } from '../src/services/replayGuard.js';
+
+import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 
 const senderId = new mongoose.Types.ObjectId().toString();
 function testAuth(req, _res, next) {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+
 import KeyBundle from '../models/KeyBundle.js';
 
 export default function keybundleRouter(auth) {

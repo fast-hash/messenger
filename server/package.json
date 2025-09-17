@@ -27,7 +27,7 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^10.1.4",
+    "mongodb-memory-server": "^10.2.1",
     "nodemon": "^3.1.10",
     "socket.io-client": "^4.8.1",
     "supertest": "^7.1.1"

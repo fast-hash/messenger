@@ -1,17 +1,19 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
 import http from 'http';
-import mongoose from 'mongoose';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import mongoose from 'mongoose';
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
-import { createApp } from '../src/app.js';
-import Message from '../src/models/Message.js';
-import Chat from '../src/models/Chat.js';
-import { setRedisClient, closeRedis } from '../src/services/replayGuard.js';
-import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 import { setupTestLibsignal } from '../../client/test/libsignal-stub.mjs';
+import { createApp } from '../src/app.js';
+import Chat from '../src/models/Chat.js';
+import Message from '../src/models/Message.js';
+import { setRedisClient, closeRedis } from '../src/services/replayGuard.js';
+
+import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 
 setupTestLibsignal();
 
@@ -70,7 +72,7 @@ test('http round-trip encrypts, stores, and decrypts', async () => {
   assert.equal(Object.prototype.hasOwnProperty.call(stored, 'text'), false);
   assert.match(stored.encryptedPayload, /^[A-Za-z0-9+/=]+$/);
 
-  const items = await history(chatId);
+  const { messages: items } = await history(chatId);
   assert.equal(items.length, 1);
   assert.equal(items[0].text, plaintext);
   assert.equal(items[0].encryptedPayload, stored.encryptedPayload);

@@ -1,10 +1,10 @@
 import React, { useContext, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { AuthContext } from '../contexts/AuthContext';
 import { api } from '../api/api';
-import { generateIdentityAndPreKeys, signalStore } from '../crypto/signal';
+import { AuthContext } from '../contexts/AuthContext';
 import { saveIdentityEncrypted, savePreKeys } from '../crypto/keystore';
+import { generateIdentityAndPreKeys, signalStore } from '../crypto/signal';
 
 const initialForm = {
   username: '',

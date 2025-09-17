@@ -1,5 +1,5 @@
-import config from './src/config.js';
 import { createApp, connectMongo, attachHttp } from './src/app.js';
+import config from './src/config.js';
 import authMiddleware from './src/middleware/auth.js';
 
 const port = config.get('server.port');
@@ -20,5 +20,5 @@ const { server, io: attachedIo } = await attachHttp(app);
 io = attachedIo;
 
 server.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+  console.warn(`API listening on http://localhost:${port}`);
 });

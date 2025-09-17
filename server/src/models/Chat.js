@@ -19,7 +19,7 @@ ChatSchema.statics.isMember = async function isMember(chatId, userId) {
     const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
     const exists = await this.exists({ _id: chatObjectId, participants: userObjectId });
     return Boolean(exists);
-  } catch (_err) {
+  } catch {
     return false;
   }
 };

@@ -17,3 +17,4 @@ docker-compose.override.yml
 docker-data/
 .idea/
 *.iml
+slides/deck.pdf
