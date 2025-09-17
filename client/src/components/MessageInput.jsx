@@ -15,6 +15,7 @@ export default function MessageInput({ onSend }) {
     <form onSubmit={submit} style={{ display: 'flex', marginTop: '1em' }}>
       <input
         style={{ flex: 1, padding: '0.5em' }}
+        data-testid="composer"
         value={text}
         onChange={e => setText(e.target.value)}
         placeholder="Type your message…"
