@@ -1,7 +1,8 @@
 import React, { createContext, useState, useEffect } from 'react'
-import { jwtDecode } from 'jwt-decode'                  // ← named-export!
-import { api, setToken as setApiToken } from '../api/api'
+import { jwtDecode } from 'jwt-decode'
+import { api } from '../api/api'
 import { useNavigate } from 'react-router-dom'
+import { resetSignalState } from '../crypto/signal'
 
 export const AuthContext = createContext()
 
@@ -19,7 +20,6 @@ export function AuthProvider ({ children }) {
       const { exp, userId: uid } = jwtDecode(t)
       if (Date.now() < exp * 1000) {
         setToken(t)
-        setApiToken(t)
         setUserId(uid)
       } else {
         localStorage.removeItem('token')
@@ -33,7 +33,6 @@ export function AuthProvider ({ children }) {
     const { token: t, userId: uid } = await api.login(creds)
     localStorage.setItem('token', t)
     setToken(t)
-    setApiToken(t)
     setUserId(uid)
     return uid
   }
@@ -43,7 +42,6 @@ export function AuthProvider ({ children }) {
     const { token: t, userId: uid } = await api.register(data)
     localStorage.setItem('token', t)
     setToken(t)
-    setApiToken(t)
     setUserId(uid)
     return uid
   }
@@ -51,8 +49,8 @@ export function AuthProvider ({ children }) {
   const logout = () => {
     localStorage.removeItem('token')
     setToken(null)
-    setApiToken(null)
     setUserId(null)
+    resetSignalState()
     navigate('/login')
   }
 

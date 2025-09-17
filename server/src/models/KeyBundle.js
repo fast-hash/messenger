@@ -1,5 +1,4 @@
-// server/models/KeyBundle.js
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const KeyBundleSchema = new mongoose.Schema({
   userId: {
@@ -9,23 +8,21 @@ const KeyBundleSchema = new mongoose.Schema({
     required: true
   },
   identityKey: {
-    // Base64-строка или PEM-формат
     type: String,
     required: true
   },
   signedPreKey: {
-    keyId:     { type: Number, required: true },
+    keyId: { type: Number, required: true },
     publicKey: { type: String, required: true },
     signature: { type: String, required: true }
   },
   oneTimePreKeys: [
     {
-      keyId:     { type: Number, required: true },
+      keyId: { type: Number, required: true },
       publicKey: { type: String, required: true },
-      used:      { type: Boolean, default: false }
+      used: { type: Boolean, default: false }
     }
-  ],
-  createdAt: { type: Date, default: Date.now }
-});
+  ]
+}, { timestamps: true });
 
-module.exports = mongoose.model('KeyBundle', KeyBundleSchema);
+export default mongoose.model('KeyBundle', KeyBundleSchema);

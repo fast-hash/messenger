@@ -1,107 +1,246 @@
-// client/src/crypto/signal.js
-import { Buffer } from 'buffer';
-import * as libsignal from 'libsignal-protocol';
-import forge from 'node-forge';
-
-/* ---------- примитивное persistent-store ---------- */
-const LOCAL_KEY = 'secure-messenger-signal-store';
-const store = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}');
-
-function save() {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(store));
+const globalScope = typeof window !== 'undefined' ? window : globalThis;
+if (!globalScope.window) {
+  globalScope.window = globalScope;
 }
 
-/* ---------- key & session helpers ---------- */
-export async function initIdentity() {
-    if (store.identityKeyPair && store.registrationId) return;
+const WORKER_TIMEOUT_MS = 10_000;
+const memoryStore = new Map();
+let workerWrapperPromise = null;
+let requestCounter = 0;
+const pendingRequests = new Map();
+let storeSyncChain = Promise.resolve();
 
-    store.identityKeyPair = await libsignal.KeyHelper.generateIdentityKeyPair();
-    store.registrationId  = await libsignal.KeyHelper.generateRegistrationId();
-    save();
+function shouldSyncKey(key) {
+  if (key === 'identityKeyPair' || key === 'registrationId') {
+    return true;
+  }
+  if (key.startsWith('25519KeypreKey') || key.startsWith('25519KeysignedKey')) {
+    return true;
+  }
+  return false;
 }
 
-export async function buildPreKeyBundle() {
-    await initIdentity();
-
-    const preKey       = await libsignal.KeyHelper.generatePreKey(1);
-    const signedPreKey = await libsignal.KeyHelper.generateSignedPreKey(
-        store.identityKeyPair,
-        1
-    );
-
-    return {
-        identityKey: Buffer.from(store.identityKeyPair.pubKey).toString('base64'),
-        registrationId: store.registrationId,
-        preKey: {
-            keyId: 1,
-            publicKey: Buffer.from(preKey.keyPair.pubKey).toString('base64')
-        },
-        signedPreKey: {
-            keyId: 1,
-            publicKey: Buffer.from(signedPreKey.keyPair.pubKey).toString('base64'),
-            signature: Buffer.from(signedPreKey.signature).toString('base64')
-        }
-    };
+function getValue(key) {
+  return memoryStore.get(key) ?? null;
 }
 
-/* ---------- lib-compatible in-memory store ---------- */
-function get(key)  { return store[key]; }
-function put(key,v){ store[key] = v; save(); }
+function storeValue(key, value, options = {}) {
+  const { sync = true } = options;
+
+  if (value === undefined || value === null) {
+    memoryStore.delete(key);
+    if (sync && shouldSyncKey(key)) {
+      queueStoreSync('store:remove', { key });
+    }
+    return;
+  }
+
+  memoryStore.set(key, value);
+  if (sync && shouldSyncKey(key)) {
+    queueStoreSync('store:set', { key, value });
+  }
+}
+
+function applyMaterialToLocalStore(material) {
+  if (!material) {
+    return;
+  }
+
+  storeValue('identityKeyPair', material.identityKeyPair, { sync: false });
+  storeValue('registrationId', material.registrationId, { sync: false });
+
+  if (material.signedPreKey) {
+    storeValue(`25519KeysignedKey${material.signedPreKey.keyId}`, material.signedPreKey.keyPair, { sync: false });
+  }
+
+  if (Array.isArray(material.oneTimePreKeys)) {
+    material.oneTimePreKeys.forEach(preKey => {
+      if (preKey && typeof preKey.keyId !== 'undefined') {
+        storeValue(`25519KeypreKey${preKey.keyId}`, preKey.keyPair, { sync: false });
+      }
+    });
+  }
+}
+
+function handleWorkerMessage(message) {
+  const payload = message?.data ?? message;
+  if (!payload || typeof payload.id === 'undefined') {
+    return;
+  }
+
+  const entry = pendingRequests.get(payload.id);
+  if (!entry) {
+    return;
+  }
+
+  clearTimeout(entry.timeout);
+  pendingRequests.delete(payload.id);
+
+  if (payload.error) {
+    const error = new Error(payload.error.message || 'Crypto worker error');
+    error.name = payload.error.name || 'Error';
+    entry.reject(error);
+    return;
+  }
+
+  entry.resolve(payload.result);
+}
+
+function handleWorkerError(error) {
+  const err = error instanceof Error ? error : new Error(String(error || 'Unknown crypto worker error'));
+  pendingRequests.forEach(entry => {
+    clearTimeout(entry.timeout);
+    entry.reject(err);
+  });
+  pendingRequests.clear();
+  workerWrapperPromise = null;
+}
+
+function wrapBrowserWorker(worker) {
+  worker.addEventListener('message', handleWorkerMessage);
+  worker.addEventListener('error', handleWorkerError);
+  worker.addEventListener('messageerror', handleWorkerError);
+  return {
+    postMessage(message) {
+      worker.postMessage(message);
+    },
+    terminate() {
+      worker.terminate();
+    }
+  };
+}
+
+function wrapNodeWorker(worker) {
+  worker.on('message', handleWorkerMessage);
+  worker.on('error', handleWorkerError);
+  worker.on('exit', code => {
+    if (code !== 0) {
+      handleWorkerError(new Error(`Crypto worker exited with code ${code}`));
+    }
+  });
+  if (typeof worker.unref === 'function') {
+    worker.unref();
+  }
+  return {
+    postMessage(message) {
+      worker.postMessage(message);
+    },
+    terminate() {
+      worker.terminate();
+    }
+  };
+}
+
+async function createWorkerWrapper() {
+  if (typeof Worker !== 'undefined') {
+    const worker = new Worker(new URL('./worker/crypto.worker.js', import.meta.url), { type: 'module' });
+    return wrapBrowserWorker(worker);
+  }
+
+  const { Worker: NodeWorker } = await import('node:worker_threads');
+  const worker = new NodeWorker(new URL('./worker/crypto.worker.js', import.meta.url), { type: 'module' });
+  return wrapNodeWorker(worker);
+}
+
+async function ensureWorker() {
+  if (!workerWrapperPromise) {
+    workerWrapperPromise = createWorkerWrapper()
+      .then(wrapper => wrapper)
+      .catch(error => {
+        workerWrapperPromise = null;
+        throw error;
+      });
+  }
+
+  return workerWrapperPromise;
+}
+
+async function sendRequest(action, payload = {}) {
+  const wrapper = await ensureWorker();
+  return new Promise((resolve, reject) => {
+    const id = ++requestCounter;
+    const timeout = setTimeout(() => {
+      pendingRequests.delete(id);
+      reject(new Error(`Crypto worker request timed out for action "${action}"`));
+    }, WORKER_TIMEOUT_MS);
+
+    pendingRequests.set(id, { resolve, reject, timeout });
+    wrapper.postMessage({ id, action, payload });
+  });
+}
+
+function queueStoreSync(action, payload) {
+  storeSyncChain = storeSyncChain
+    .then(() => sendRequest(action, payload))
+    .catch(error => {
+      console.error('Failed to synchronise crypto store with worker', error);
+    });
+}
+
+async function callWorker(action, payload) {
+  await storeSyncChain;
+  return sendRequest(action, payload);
+}
+
+export async function generateIdentityAndPreKeys() {
+  const response = await callWorker('generateIdentityAndPreKeys');
+  const material = response?.material;
+  applyMaterialToLocalStore(material);
+  return material;
+}
+
+export async function initSession(recipientId, bundleBase64) {
+  if (!recipientId) {
+    throw new Error('recipientId is required to initialise a session');
+  }
+  await callWorker('initSession', { recipientId, bundleBase64 });
+}
+
+export async function encryptMessage(utf8Plaintext) {
+  if (typeof utf8Plaintext !== 'string') {
+    throw new TypeError('encryptMessage expects a UTF-8 string');
+  }
+  const response = await callWorker('encryptMessage', { plaintext: utf8Plaintext });
+  return response?.ciphertext;
+}
+
+export async function decryptMessage(ciphertextBase64) {
+  if (typeof ciphertextBase64 !== 'string') {
+    throw new TypeError('decryptMessage expects a base64 string');
+  }
+  const response = await callWorker('decryptMessage', { ciphertext: ciphertextBase64 });
+  return response?.plaintext;
+}
+
+export function resetSignalState() {
+  memoryStore.clear();
+  queueStoreSync('store:clear', {});
+}
 
 export const signalStore = {
-    /* identity */
-    getIdentityKeyPair: () => get('identityKeyPair'),
-    getLocalRegistrationId: () => get('registrationId'),
+  getIdentityKeyPair: () => getValue('identityKeyPair'),
+  setIdentityKeyPair: value => storeValue('identityKeyPair', value),
+  getLocalRegistrationId: () => getValue('registrationId'),
+  setLocalRegistrationId: value => storeValue('registrationId', value),
 
-    /* pre-keys */
-    loadPreKey: keyId => get(`25519KeypreKey${keyId}`),
-    storePreKey: (keyId, keyPair) => put(`25519KeypreKey${keyId}`, keyPair),
+  loadPreKey: keyId => getValue(`25519KeypreKey${keyId}`),
+  storePreKey: (keyId, keyPair) => storeValue(`25519KeypreKey${keyId}`, keyPair),
+  removePreKey: keyId => storeValue(`25519KeypreKey${keyId}`, undefined),
 
-    /* signed pre key */
-    loadSignedPreKey: keyId => get(`25519KeysignedKey${keyId}`),
-    storeSignedPreKey: (keyId, keyPair) =>
-        put(`25519KeysignedKey${keyId}`, keyPair),
+  loadSignedPreKey: keyId => getValue(`25519KeysignedKey${keyId}`),
+  storeSignedPreKey: (keyId, keyPair) => storeValue(`25519KeysignedKey${keyId}`, keyPair),
+  removeSignedPreKey: keyId => storeValue(`25519KeysignedKey${keyId}`, undefined),
 
-    /* session */
-    loadSession: id => get(`session${id}`),
-    storeSession: (id, s) => put(`session${id}`, s),
+  loadSession: id => getValue(`session${id}`),
+  storeSession: (id, session) => storeValue(`session${id}`, session, { sync: false }),
+  removeSession: id => storeValue(`session${id}`, undefined, { sync: false }),
 
-    /* identity of contacts */
-    isTrustedIdentity: () => true,
-    loadIdentityKey: id => get(`identityKey${id}`),
-    saveIdentity: (id, identityKey) => put(`identityKey${id}`, identityKey)
+  isTrustedIdentity: () => true,
+  loadIdentityKey: id => getValue(`identityKey${id}`),
+  saveIdentity: (id, identityKey) => storeValue(`identityKey${id}`, identityKey, { sync: false }),
+
+  reset: () => {
+    memoryStore.clear();
+    queueStoreSync('store:clear', {});
+  }
 };
-
-/* ---------- high-level API ---------- */
-export async function initSession(recipientId, theirBundle) {
-    const address   = new libsignal.SignalProtocolAddress(recipientId, 1);
-    const builder   = new libsignal.SessionBuilder(signalStore, address);
-
-    await builder.processPreKey(theirBundle);
-}
-
-export async function encryptMessage(recipientId, text) {
-    const address = new libsignal.SignalProtocolAddress(recipientId, 1);
-    const cipher  = new libsignal.SessionCipher(signalStore, address);
-    const msg     = await cipher.encrypt(
-        new TextEncoder().encode(text)
-    );
-    return msg; // {type, body}
-}
-
-export async function decryptMessage(senderId, { type, body }) {
-    const address = new libsignal.SignalProtocolAddress(senderId, 1);
-    const cipher  = new libsignal.SessionCipher(signalStore, address);
-
-    const bin = type === 3
-        ? await cipher.decryptPreKeyWhisperMessage(
-            Buffer.from(body, 'base64'),
-            'binary'
-        )
-        : await cipher.decryptWhisperMessage(
-            Buffer.from(body, 'base64'),
-            'binary'
-        );
-
-    return new TextDecoder().decode(bin);
-}

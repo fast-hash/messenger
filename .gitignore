@@ -3,6 +3,7 @@
 node_modules/
 dist/
 build/
+client/playwright-report/
 .env
 logs/
 *.log

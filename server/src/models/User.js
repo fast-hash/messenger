@@ -1,6 +1,4 @@
-// server/models/User.js
-
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
   username: {
@@ -23,11 +21,7 @@ const UserSchema = new mongoose.Schema({
   publicKey: {
     type: String,
     default: ''
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
-});
+}, { timestamps: true });
 
-module.exports = mongoose.model('User', UserSchema);
+export default mongoose.model('User', UserSchema);

@@ -1,5 +1,23 @@
 {
+  "name": "messenger-monorepo",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "build": "npm -w client run build && (npm -w server run build || echo 'server: build script not defined')",
+    "test": "node --test",
+    "lint": "npm -w client run lint && (npm -w server run lint || echo 'server: lint script not defined')",
+    "verify:client": "npm -w client run build && npm -w client test",
+    "verify:server": "npm -w server test && npm -w server run lint",
+    "verify:ciphertext": "node scripts/verify-ciphertext.mjs",
+    "verify:e2e": "npx playwright install --with-deps && npm -w client run e2e",
+    "verify:db": "node scripts/verify-db.mjs",
+    "verify:load": "npx artillery run load/basic.yml",
+    "verify:all": "npm run verify:client && npm run verify:server && npm run verify:ciphertext && npm run verify:e2e && npm run verify:db && npm run verify:load"
+  },
   "dependencies": {
     "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "artillery": "^2.0.11"
   }
 }
