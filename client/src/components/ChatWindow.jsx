@@ -21,7 +21,10 @@ export function ChatWindow({ messages, currentUserId, onLoadMore, hasMore, loadi
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {items.map((message) => (
-            <li key={message._id || message.id || message.createdAt} style={{ marginBottom: '0.5rem' }}>
+            <li
+              key={message._id || message.id || message.createdAt}
+              style={{ marginBottom: '0.5rem' }}
+            >
               <b>{message.senderId === currentUserId ? 'Вы' : 'Собеседник'}:</b>{' '}
               <span>{message.text ?? '…'}</span>
             </li>

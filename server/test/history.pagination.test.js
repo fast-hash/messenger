@@ -83,7 +83,11 @@ test('history pagination yields stable, deduplicated pages', async () => {
     const expectedMax = 200 - page * 50;
     const expectedMin = expectedMax - 49;
     assert.equal(ordinals[0], expectedMin, 'first ordinal should match expected window start');
-    assert.equal(ordinals[ordinals.length - 1], expectedMax, 'last ordinal should match window end');
+    assert.equal(
+      ordinals[ordinals.length - 1],
+      expectedMax,
+      'last ordinal should match window end'
+    );
 
     for (const ordinal of ordinals) {
       assert.equal(seenOrdinals.has(ordinal), false, `ordinal ${ordinal} duplicated`);

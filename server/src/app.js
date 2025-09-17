@@ -135,9 +135,7 @@ export function attachSockets(server, { cors: corsOptions } = {}) {
     try {
       const header = socket.handshake.headers?.authorization;
       const tokenFromHeader =
-        typeof header === 'string' && header.startsWith('Bearer ')
-          ? header.slice(7)
-          : undefined;
+        typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : undefined;
       const token = tokenFromHeader || socket.handshake.auth?.token;
       if (!token) {
         return next(new Error('unauthorized'));

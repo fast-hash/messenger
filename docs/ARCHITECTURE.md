@@ -8,6 +8,7 @@
 - **Redis** — используется для защиты от повторной доставки, в ключах хранится только хеш шифротекста и идентификатор чата.【F:server/src/services/replayGuard.js†L1-L67】
 
 ## Диаграмма компонентов
+
 ```mermaid
 graph TD
   A[Client (React + WebCrypto + Signal Worker)] -->|REST /auth,/keybundle,/messages| B[Server (Express)]
@@ -17,6 +18,7 @@ graph TD
 ```
 
 ## Последовательность: отправка сообщения
+
 ```mermaid
 sequenceDiagram
   participant U as User A (Client)
@@ -32,6 +34,7 @@ sequenceDiagram
 ```
 
 ## Последовательность: загрузка истории и handshake сокетов
+
 ```mermaid
 sequenceDiagram
   participant U as Client

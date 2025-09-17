@@ -53,7 +53,11 @@ export default function ChatPage() {
     setLoadingHistory(true);
     (async () => {
       try {
-        const { messages: historyMessages, nextCursor, hasMore } = await fetchHistory(chatId, {
+        const {
+          messages: historyMessages,
+          nextCursor,
+          hasMore,
+        } = await fetchHistory(chatId, {
           limit: 50,
         });
         if (cancelled) return;
@@ -88,7 +92,9 @@ export default function ChatPage() {
         const text = await decryptMessage(message.encryptedPayload);
         setMessages((prev) => {
           const key = message.id || message._id || message.createdAt;
-          if (prev.some((existing) => (existing.id || existing._id || existing.createdAt) === key)) {
+          if (
+            prev.some((existing) => (existing.id || existing._id || existing.createdAt) === key)
+          ) {
             return prev;
           }
           return [...prev, { ...message, text }];
@@ -134,14 +140,16 @@ export default function ChatPage() {
     }
     setLoadingHistory(true);
     try {
-      const { messages: olderMessages, nextCursor, hasMore } = await fetchHistory(chatId, {
+      const {
+        messages: olderMessages,
+        nextCursor,
+        hasMore,
+      } = await fetchHistory(chatId, {
         limit: 50,
         cursor: historyCursor,
       });
       setMessages((prev) => {
-        const existingKeys = new Set(
-          prev.map((msg) => msg.id || msg._id || msg.createdAt)
-        );
+        const existingKeys = new Set(prev.map((msg) => msg.id || msg._id || msg.createdAt));
         const deduped = [];
         for (const message of olderMessages) {
           const key = message.id || message._id || message.createdAt;
