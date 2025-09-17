@@ -18,11 +18,11 @@ export default function keybundleRouter(auth) {
           userId,
           identityKey,
           signedPreKey,
-          oneTimePreKeys: oneTimePreKeys.map(k => ({
+          oneTimePreKeys: oneTimePreKeys.map((k) => ({
             keyId: k.keyId,
             publicKey: k.publicKey,
-            used: false
-          }))
+            used: false,
+          })),
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
@@ -42,7 +42,7 @@ export default function keybundleRouter(auth) {
         return res.status(404).json({ error: 'not_found' });
       }
 
-      const otp = bundle.oneTimePreKeys.find(k => !k.used);
+      const otp = bundle.oneTimePreKeys.find((k) => !k.used);
       if (!otp) {
         return res.status(410).json({ error: 'no_prekeys' });
       }
@@ -55,7 +55,7 @@ export default function keybundleRouter(auth) {
       return res.json({
         identityKey: bundle.identityKey,
         signedPreKey: bundle.signedPreKey,
-        oneTimePreKey: { keyId: otp.keyId, publicKey: otp.publicKey }
+        oneTimePreKey: { keyId: otp.keyId, publicKey: otp.publicKey },
       });
     } catch (err) {
       req.app?.locals?.logger?.error?.('keybundle.fetch_failed', err);

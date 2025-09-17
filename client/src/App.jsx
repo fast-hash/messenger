@@ -21,25 +21,28 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/chat" replace /> : <LoginPage />} />
-      <Route path="/register" element={token ? <Navigate to="/chat" replace /> : <RegisterPage />} />
+      <Route
+        path="/register"
+        element={token ? <Navigate to="/chat" replace /> : <RegisterPage />}
+      />
       <Route
         path="/chat"
-        element={(
+        element={
           <Protected>
             <div style={{ padding: 24 }}>
               <p>Выберите собеседника или откройте прямую ссылку чата.</p>
               <Link to="/chat/demo">Открыть демо-чат</Link>
             </div>
           </Protected>
-        )}
+        }
       />
       <Route
         path="/chat/:chatId"
-        element={(
+        element={
           <Protected>
             <ChatPage />
           </Protected>
-        )}
+        }
       />
       <Route path="*" element={<Navigate to={token ? '/chat' : '/login'} replace />} />
     </Routes>

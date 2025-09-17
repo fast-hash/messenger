@@ -10,7 +10,7 @@ const initialForm = {
   username: '',
   email: '',
   password: '',
-  passphrase: ''
+  passphrase: '',
 };
 
 export function RegisterPage() {
@@ -20,12 +20,12 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const update = event => {
+  const update = (event) => {
     const { name, value } = event.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async event => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
 
@@ -41,24 +41,24 @@ export function RegisterPage() {
       const uploadPayload = {
         identityKey: identityMaterial.bundle.identityKey,
         signedPreKey: identityMaterial.bundle.signedPreKey,
-        oneTimePreKeys: identityMaterial.bundle.oneTimePreKeys
+        oneTimePreKeys: identityMaterial.bundle.oneTimePreKeys,
       };
 
       await register({
         username: form.username,
         email: form.email,
         password: form.password,
-        publicKey: identityMaterial.bundle.identityKey
+        publicKey: identityMaterial.bundle.identityKey,
       });
 
       await saveIdentityEncrypted(form.passphrase, {
         registrationId: identityMaterial.registrationId,
-        identityKeyPair: identityMaterial.identityKeyPair
+        identityKeyPair: identityMaterial.identityKeyPair,
       });
 
       await savePreKeys({
         signedPreKey: identityMaterial.signedPreKey,
-        oneTimePreKeys: identityMaterial.oneTimePreKeys
+        oneTimePreKeys: identityMaterial.oneTimePreKeys,
       });
 
       await api.uploadBundle(uploadPayload);
@@ -66,8 +66,11 @@ export function RegisterPage() {
       // загрузим материал обратно в рантайм, чтобы не требовать повторного ввода
       signalStore.setIdentityKeyPair(identityMaterial.identityKeyPair);
       signalStore.setLocalRegistrationId(identityMaterial.registrationId);
-      signalStore.storeSignedPreKey(identityMaterial.signedPreKey.keyId, identityMaterial.signedPreKey.keyPair);
-      identityMaterial.oneTimePreKeys.forEach(preKey => {
+      signalStore.storeSignedPreKey(
+        identityMaterial.signedPreKey.keyId,
+        identityMaterial.signedPreKey.keyPair
+      );
+      identityMaterial.oneTimePreKeys.forEach((preKey) => {
         signalStore.storePreKey(preKey.keyId, preKey.keyPair);
       });
 

@@ -35,7 +35,7 @@ test('rejects without JWT; allows with JWT and join works', async () => {
     await new Promise((resolve, reject) => {
       const client = Client(`http://127.0.0.1:${port}`, {
         autoConnect: true,
-        transports: ['websocket']
+        transports: ['websocket'],
       });
       client.on('connect', () => {
         client.close();
@@ -51,18 +51,21 @@ test('rejects without JWT; allows with JWT and join works', async () => {
   const userId = new mongoose.Types.ObjectId().toString();
   const chatId = new mongoose.Types.ObjectId().toString();
   await Chat.deleteMany({});
-  await Chat.create({ _id: new mongoose.Types.ObjectId(chatId), participants: [new mongoose.Types.ObjectId(userId)] });
+  await Chat.create({
+    _id: new mongoose.Types.ObjectId(chatId),
+    participants: [new mongoose.Types.ObjectId(userId)],
+  });
   const token = jwt.sign({ sub: userId }, process.env.JWT_SECRET, {
     algorithm: 'HS256',
     audience: process.env.JWT_AUDIENCE,
-    issuer: process.env.JWT_ISSUER
+    issuer: process.env.JWT_ISSUER,
   });
 
   await new Promise((resolve, reject) => {
     const client = Client(`http://127.0.0.1:${port}`, {
       autoConnect: true,
       transports: ['websocket'],
-      extraHeaders: { Authorization: `Bearer ${token}` }
+      extraHeaders: { Authorization: `Bearer ${token}` },
     });
     client.on('connect_error', (err) => {
       client.close();

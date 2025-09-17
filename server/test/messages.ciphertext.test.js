@@ -54,11 +54,12 @@ test('accepts ciphertext-only and stores no plaintext', async () => {
   redis.clear();
   capturedLogs = [];
   const chatId = new mongoose.Types.ObjectId().toString();
-  await Chat.create({ _id: new mongoose.Types.ObjectId(chatId), participants: [new mongoose.Types.ObjectId(fixedSenderId)] });
+  await Chat.create({
+    _id: new mongoose.Types.ObjectId(chatId),
+    participants: [new mongoose.Types.ObjectId(fixedSenderId)],
+  });
   const payload = Buffer.from('ABCD').toString('base64');
-  const res = await request
-    .post('/api/messages')
-    .send({ chatId, encryptedPayload: payload });
+  const res = await request.post('/api/messages').send({ chatId, encryptedPayload: payload });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
   assert.ok(res.body.id);

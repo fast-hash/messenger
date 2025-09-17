@@ -16,17 +16,23 @@ test('A → B: сеть только base64; в UI у B — расшифрова
 
   const ctxA = await browser.newContext();
   const pageA = await ctxA.newPage();
-  await pageA.addInitScript(([token]) => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('token', token);
-  }, [tokenA]);
+  await pageA.addInitScript(
+    ([token]) => {
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('token', token);
+    },
+    [tokenA]
+  );
 
   const ctxB = await browser.newContext();
   const pageB = await ctxB.newPage();
-  await pageB.addInitScript(([token]) => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('token', token);
-  }, [tokenB]);
+  await pageB.addInitScript(
+    ([token]) => {
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('token', token);
+    },
+    [tokenB]
+  );
 
   for (const page of [pageA, pageB]) {
     page.on('request', (req) => {

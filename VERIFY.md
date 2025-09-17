@@ -22,8 +22,8 @@ E2E_API_URL=http://localhost:8080 \
 npm run verify:e2e
 ```
 
-* Ensure the web frontend and API are accessible at the URLs above (override via env vars as needed).
-* Test artefacts: `client/playwright-report/` (view with `npx playwright show-report client/playwright-report`).
+- Ensure the web frontend and API are accessible at the URLs above (override via env vars as needed).
+- Test artefacts: `client/playwright-report/` (view with `npx playwright show-report client/playwright-report`).
 
 ## Load (Artillery)
 
@@ -33,8 +33,8 @@ export ART_CHAT_ID="<существующий chatId>"
 npm run verify:load
 ```
 
-* Scenario target is `http://localhost:8080` by default; adjust via Artillery CLI flags if required.
-* Expect ≤1% errors and review `p95` latency in the console output. Redirect stdout/stderr to capture the report if desired.
+- Scenario target is `http://localhost:8080` by default; adjust via Artillery CLI flags if required.
+- Expect ≤1% errors and review `p95` latency in the console output. Redirect stdout/stderr to capture the report if desired.
 
 ## Additional Reports
 

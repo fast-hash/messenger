@@ -61,15 +61,15 @@ export default function ChatPage() {
     if (!token || !sessionReady) return undefined;
 
     const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
-      auth: { token }
+      auth: { token },
     });
 
     socket.emit('join', chatId);
 
-    const handler = async message => {
+    const handler = async (message) => {
       try {
         const text = await decryptMessage(message.encryptedPayload);
-        setMessages(prev => [...prev, { ...message, text }]);
+        setMessages((prev) => [...prev, { ...message, text }]);
       } catch (err) {
         console.error('Failed to decrypt incoming message:', err);
       }
@@ -83,19 +83,19 @@ export default function ChatPage() {
     };
   }, [chatId, sessionReady, token]);
 
-  const handleSend = async plainText => {
+  const handleSend = async (plainText) => {
     if (!sessionReady || !plainText) return;
     try {
       const { encryptedPayload } = await sendCiphertext(chatId, plainText);
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
           chatId,
           senderId: userId,
           encryptedPayload,
           text: plainText,
-          createdAt: new Date().toISOString()
-        }
+          createdAt: new Date().toISOString(),
+        },
       ]);
     } catch (err) {
       console.error('Failed to send message:', err);
