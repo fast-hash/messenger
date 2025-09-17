@@ -4,8 +4,13 @@ import http from 'http';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+
 import { createApp } from '../src/app.js';
 import Message from '../src/models/Message.js';
+import Chat from '../src/models/Chat.js';
+import { setRedisClient, closeRedis } from '../src/services/replayGuard.js';
+import { InMemoryRedis } from './helpers/inMemoryRedis.js';
 import { setupTestLibsignal } from '../../client/test/libsignal-stub.mjs';
 
 setupTestLibsignal();
@@ -21,6 +26,7 @@ let mongod;
 let server;
 let baseUrl;
 const senderId = new mongoose.Types.ObjectId().toString();
+const redis = new InMemoryRedis();
 
 function authStub(req, _res, next) {
   req.user = { id: senderId };
@@ -37,6 +43,7 @@ test('setup', async () => {
   const address = server.address();
   baseUrl = `http://127.0.0.1:${address.port}`;
   globalThis.__API_BASE_URL = baseUrl;
+  setRedisClient(redis);
 });
 
 test('http round-trip encrypts, stores, and decrypts', async () => {
@@ -52,6 +59,7 @@ test('http round-trip encrypts, stores, and decrypts', async () => {
   await initSession(recipientId, bundle);
 
   const chatId = new mongoose.Types.ObjectId().toString();
+  await Chat.create({ _id: new mongoose.Types.ObjectId(chatId), participants: [new mongoose.Types.ObjectId(senderId)] });
   const plaintext = 'integration ciphertext message';
 
   await sendMessage(chatId, plaintext);
@@ -76,4 +84,6 @@ test('teardown', async () => {
   if (server) {
     await new Promise(resolve => server.close(resolve));
   }
+  redis.clear();
+  await closeRedis();
 });

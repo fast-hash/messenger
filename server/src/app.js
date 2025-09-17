@@ -1,18 +1,24 @@
+import http from 'node:http';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import morgan from 'morgan';
+import { Server as SocketIOServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import config from './config.js';
 import mongoose from 'mongoose';
 import messagesRouter from './routes/messages.js';
 import authRouter from './routes/auth.js';
 import buildKeybundleRouter from './routes/keybundle.js';
 import authMiddleware from './middleware/auth.js';
+import Chat from './models/Chat.js';
 
 export async function connectMongo(uri = config.get('mongo.uri')) {
   await mongoose.connect(uri);
 }
+
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
 export function createApp({ authMiddleware: overrideAuth, audit, logger = console, messageObserver, onMessage } = {}) {
   const app = express();
@@ -35,14 +41,24 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
   app.use(morgan('tiny', { stream: auditStream }));
   app.use(rateLimit({ windowMs: 60_000, max: 300 }));
 
-  app.use('/api/auth', authRouter);
-
   const pass = (req, _res, next) => next();
   const auth = overrideAuth || authMiddleware || pass;
 
+  const perUserLimiter = rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
+    max: Number(process.env.RATE_LIMIT_MAX || 120),
+    keyGenerator: (req) => req.user?.id || req.ip,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+
+  app.use('/api/auth', authRouter);
+
   app.use('/api/keybundle', buildKeybundleRouter(auth));
+
+  const messagesMiddlewares = [auth, perUserLimiter];
   if (typeof messageObserver === 'function') {
-    app.use('/api/messages', (req, _res, next) => {
+    messagesMiddlewares.push((req, _res, next) => {
       try {
         messageObserver(req.body);
       } catch (err) {
@@ -51,7 +67,8 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
       next();
     });
   }
-  app.use('/api/messages', messagesRouter({ auth, onMessage }));
+  messagesMiddlewares.push(messagesRouter({ auth: null, onMessage }));
+  app.use('/api/messages', ...messagesMiddlewares);
 
   app.get('/', (_req, res) => {
     res.send('Secure Messenger API');
@@ -63,4 +80,79 @@ export function createApp({ authMiddleware: overrideAuth, audit, logger = consol
   });
 
   return app;
+}
+
+export function attachSockets(server, { cors: corsOptions } = {}) {
+  const allowedOriginsEnv = process.env.SOCKET_ALLOWED_ORIGINS;
+  const allowedOrigins = allowedOriginsEnv
+    ? allowedOriginsEnv.split(',').map((origin) => origin.trim()).filter(Boolean)
+    : config.get('server.cors.origins');
+
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: corsOptions?.origin ?? allowedOrigins,
+      credentials: true
+    }
+  });
+
+  const secret = process.env.JWT_SECRET || config.get('jwt.secret');
+  const audience = process.env.JWT_AUDIENCE || undefined;
+  const issuer = process.env.JWT_ISSUER || undefined;
+
+  io.use((socket, next) => {
+    try {
+      const header = socket.handshake.headers?.authorization;
+      const tokenFromHeader = typeof header === 'string' && header.startsWith('Bearer ')
+        ? header.slice(7)
+        : undefined;
+      const token = tokenFromHeader || socket.handshake.auth?.token;
+      if (!token) {
+        return next(new Error('unauthorized'));
+      }
+
+      const verifyOptions = { algorithms: ['HS256'] };
+      if (audience) {
+        verifyOptions.audience = audience;
+      }
+      if (issuer) {
+        verifyOptions.issuer = issuer;
+      }
+
+      const payload = jwt.verify(token, secret, verifyOptions);
+      const userId = payload.sub || payload.userId || payload.id;
+      if (!userId) {
+        return next(new Error('unauthorized'));
+      }
+      socket.data.userId = typeof userId === 'string' ? userId : userId.toString();
+      return next();
+    } catch (err) {
+      return next(new Error('unauthorized'));
+    }
+  });
+
+  io.on('connection', (socket) => {
+    socket.on('join', async ({ chatId } = {}, ack) => {
+      try {
+        if (typeof chatId !== 'string' || !OBJECT_ID_RE.test(chatId)) {
+          throw new Error('bad chatId');
+        }
+        const ok = await Chat.isMember(chatId, socket.data?.userId);
+        if (!ok) {
+          throw new Error('forbidden');
+        }
+        await socket.join(chatId);
+        ack?.({ ok: true });
+      } catch (err) {
+        ack?.({ ok: false, error: err.message });
+      }
+    });
+  });
+
+  return io;
+}
+
+export async function attachHttp(app, options = {}) {
+  const server = http.createServer(app);
+  const io = attachSockets(server, options.io);
+  return { app, server, io };
 }
