@@ -1,0 +1,17 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 60
+      arrivalRate: 20
+scenarios:
+  - name: send-ciphertext
+    flow:
+      - post:
+          url: "/api/messages"
+          headers:
+            Authorization: "Bearer {{ $env.ART_TOKEN }}"
+          json:
+            chatId: "{{ $env.ART_CHAT_ID }}"
+            encryptedPayload: "QUJDRA=="
+          expect:
+            - statusCode: 200

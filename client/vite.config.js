@@ -28,5 +28,8 @@ export default defineConfig({
             }
         }
     },
+    worker: {
+        format: 'es'
+    },
     define: { global: 'window' }   // полифил для Node-глобалов
 });
